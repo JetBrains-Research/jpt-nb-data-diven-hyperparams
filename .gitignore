@@ -1,0 +1,8 @@
+/playground
+/dataset
+.DS_Store
+.idea/
+/venv/
+**/__pycache__
+/sklearn_hp_analisys/logs
+/sklearn_hp_analisys/results/extracted_data
