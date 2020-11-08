@@ -11,7 +11,10 @@ import os
 
 import pandas as pd
 
-from util.const import ML_MODELS_LIST, MODEL_NAMES_TO_MODULE_NAMES, EXTRACTED_PARAMS_FILENAME, PLOTS_DIR
+from sklearn_hp_analisys.util.const import ML_MODELS_LIST,\
+    MODEL_NAMES_TO_MODULE_NAMES,\
+    EXTRACTED_PARAMS_FILENAME,\
+    PLOTS_DIR
 
 
 def only_sklearn_hyperparams(ml_model_name: str, hyperparams: Dict):

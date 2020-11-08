@@ -6,8 +6,8 @@ from typing import Dict, Any
 
 import ast
 
-from util.const import ML_MODELS_LIST
-from util.file_util import *
+from sklearn_hp_analisys.util.const import ML_MODELS_LIST
+from sklearn_hp_analisys.util.file_util import *
 
 
 class HyperparamsExtractor:

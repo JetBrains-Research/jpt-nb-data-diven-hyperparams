@@ -1,5 +1,5 @@
-from hyperparams_analyzer.hyperparams_analyzer import HyperparamsAnalyzer as HpAnalyzer
-from util.const import EXTRACTED_PARAMS_FILENAME, ML_MODELS_LIST
+from sklearn_hp_analisys.hyperparams_analyzer.hyperparams_analyzer import HyperparamsAnalyzer as HpAnalyzer
+from sklearn_hp_analisys.util.const import EXTRACTED_PARAMS_FILENAME, ML_MODELS_LIST
 
 
 def print_top_models(raw_data):
