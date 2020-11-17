@@ -3,8 +3,8 @@ import os
 
 import pandas as pd
 
-from hyperparams_extractor.hyperparams_extractor import HyperparamsExtractor as HpExtractor, write_results_to_file
-from util.const import PATH_TO_DATA, LOG_DIR, EXTRACTED_PARAMS_FILENAME, EXTRACTED_DATA_DIR
+from sklearn_hp_analisys.hyperparams_extractor.hyperparams_extractor import HyperparamsExtractor as HpExtractor, write_results_to_file
+from sklearn_hp_analisys.util.const import PATH_TO_DATA, LOG_DIR, EXTRACTED_PARAMS_FILENAME, EXTRACTED_DATA_DIR
 
 LOG_FILE_NAME = 'log_extract.txt'
 logging.basicConfig(filename=os.path.join(LOG_DIR, LOG_FILE_NAME), level=logging.INFO)
