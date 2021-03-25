@@ -8,6 +8,7 @@ from typing import Dict
 from matplotlib import pyplot as plt
 import seaborn as sns
 import os
+import numpy as np
 
 import pandas as pd
 
@@ -82,9 +83,9 @@ class HyperparamsAnalyzer:
     class NumericHyperparamHandler:
         def __init__(self, values: pd.Series, hp_name: str):
             self.hp_name = hp_name
-            self.values = pd.to_numeric(values).dropna()
+            self.values = pd.to_numeric(values, errors='coerce').dropna()
 
-        def outliers_are_dropped(self, percentile=0.25):
+        def values_with_dropped_outliers(self, percentile=0.15):
             Q1 = self.values.quantile(percentile)
             Q3 = self.values.quantile(1 - percentile)
             IQR = Q3 - Q1
@@ -92,22 +93,35 @@ class HyperparamsAnalyzer:
 
         def describe_table(self, drop_outliers=True):
             if drop_outliers:
-                return self.outliers_are_dropped().describe()
+                return self.values_with_dropped_outliers().describe()
             return self.values.describe()
 
-        def distplot(self, title, filename):
-            sns_plot = sns.distplot(self.outliers_are_dropped())
+        def show_and_save_distplot(self, title, filename):
+            sns_plot = sns.distplot(self.values_with_dropped_outliers())
             sns_plot.set_title(title)
             plt.show()
             sns_fig = sns_plot.get_figure()
             sns_fig.savefig(os.path.join(PLOTS_DIR, filename))
             plt.close(sns_fig)
 
+        def get_distplot(self, title=None):
+            if title is None:
+                title = f'Hyperparameter: {self.hp_name}'
+            sns_plot = sns.histplot(np.log10(self.values_with_dropped_outliers()), kde=True)
+            sns_plot.set_title(title)
+            return sns_plot
+
+        def get_values(self, drop_outliers=True):
+            if drop_outliers:
+                return self.values_with_dropped_outliers()
+            else:
+                return self.values
+
 
 def main():
 
     required_stats = ['mean', 'std', 'min', 'max']
-    required_model = 'XGBRegressor'
+    required_model = 'SVC'
 
     hp_analyzer = CommonHyperparamsAnalyzer(EXTRACTED_PARAMS_FILENAME)
     hp_analyzer.print_stats(required_model, stats=required_stats)
