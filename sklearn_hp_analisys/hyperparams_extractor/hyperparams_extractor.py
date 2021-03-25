@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) Aniskov N.
 
-import json
 from typing import Dict, Any
 
 import ast
@@ -73,15 +72,5 @@ class HyperparamsExtractor:
         if not self.__models_to_hyperparams_list:
             self.__extract_hyperparams(self.__tree)
         return self.__models_to_hyperparams_list
-
-
-def write_results_to_file(result, out_filename):
-    """
-    This function extracts hyperparameters from all files located in samples_dir folder,
-    creates out_filename file and writes the result of work to it.
-    """
-
-    with open(out_filename, 'w') as out_f:
-        json.dump(result, out_f)
 
 
