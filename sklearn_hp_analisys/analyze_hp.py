@@ -27,7 +27,7 @@ if __name__ == '__main__':
         hp_analyzer = HpAnalyzer(EXTRACTED_PARAMS_FILENAME, model_name)
 
         num_hp_analyzer = hp_analyzer.get_numeric_hp_analyzer(hp_name)
-        num_hp_analyzer.distplot(f'"{hp_name}" hyperparameter for {model_name}', '.'.join([model_name, hp_name, 'jpg']))
+        num_hp_analyzer.show_and_save_distplot(f'"{hp_name}" hyperparameter for {model_name}', '.'.join([model_name, hp_name, 'jpg']))
         print(num_hp_analyzer.describe_table())
 
 
