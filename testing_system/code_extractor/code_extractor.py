@@ -1,0 +1,227 @@
+import ast
+import json
+import re
+from dataclasses import dataclass
+from typing import List
+
+from sklearn_hp_analisys.util.ast_util import get_func_name
+from sklearn_hp_analisys.util.const import ML_MODELS_LIST
+
+
+class IPYNB_GRAMMAR:
+    METADATA_KEY = 'metadata'
+    CELLS_KEY = 'cells'
+    CELL_TYPE_KEY = 'cell_type'
+    EXECUTION_COUNT_KEY = 'execution_count'
+    OUTPUTS_KEY = 'outputs'
+    SOURCE_KEY = 'source'
+    NBFORMAT_KEY = 'nbformat'
+    NBFORMAT_MINOR_KEY = 'nbformat_minor'
+
+    class DEFAULTS:
+        DEFAULT_CELL_METADATA = {}
+        DEFAULT_EXECUTION_COUNT = None
+        DEFAULT_OUTPUTS = []
+
+        DEFAULT_NB_METADATA = {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3"
+            },
+            "language_info": {
+                "codemirror_mode": {
+                    "name": "ipython",
+                    "version": 3
+                },
+                "file_extension": ".py",
+                "mimetype": "text/x-python",
+                "name": "python",
+                "nbconvert_exporter": "python",
+                "pygments_lexer": "ipython3",
+                "version": "3.7.8"
+            }
+        }
+        DEFAULT_NBFORMAT = 4
+        DEFAULT_NBFORMAT_MINOR = 1
+
+
+class NtbCodeExtractorHelper:
+    ntb_specific_patterns = [r'^%']
+
+    @staticmethod
+    def generate_code_cells_from_ipynb(path_to_ipynb_file):
+        with open(path_to_ipynb_file) as ipynb_f:
+            content = json.load(ipynb_f)
+            for cell in content[IPYNB_GRAMMAR.CELLS_KEY]:
+                if cell[IPYNB_GRAMMAR.CELL_TYPE_KEY] == 'code':
+                    yield cell
+
+    @staticmethod
+    def all_cell_source(cell):
+        res = ''
+        stop_patterns = "(" + ")|(".join(NtbCodeExtractorHelper.ntb_specific_patterns) + ")"
+        if isinstance(cell[IPYNB_GRAMMAR.SOURCE_KEY], list):
+            for src in cell[IPYNB_GRAMMAR.SOURCE_KEY]:
+                if re.match(stop_patterns, src) is None:
+                    res += src + '\n'
+        else:
+            for src in cell[IPYNB_GRAMMAR.SOURCE_KEY].split('\n'):
+                if re.match(stop_patterns, src) is None:
+                    res += src + '\n'
+        return res
+
+    @staticmethod
+    def generate_code_up_to(cell_no_, line_no_, path_to_ntb_file, including_last_line=False):
+        res = ''
+        for cell_no, cell in enumerate(NtbCodeExtractorHelper.generate_code_cells_from_ipynb(path_to_ntb_file)):
+            if cell_no < cell_no_:
+                res += NtbCodeExtractorHelper.all_cell_source(cell) + '\n'
+            else:
+                res += '\n'.join(NtbCodeExtractorHelper.all_cell_source(cell)
+                                 .split('\n')[:line_no_ + including_last_line])
+                break
+        return res
+
+
+@dataclass
+class NtbTokenLocationInfo:
+    cell_no: int = None
+    line_no: int = None
+
+
+@dataclass
+class NtbModelInfo:
+    model_name: str = None
+    variable_name: str = None
+    constructor_location: NtbTokenLocationInfo = None
+    fit_location: NtbTokenLocationInfo = None
+
+
+class NtbCodeExtractor:
+    model_info: List[NtbModelInfo]
+
+    def __init__(self, path_to_ntb_file: str):
+        self.path_to_ntb_file = path_to_ntb_file
+        self.model_info = []
+        self.__collect_model_info()
+
+    class AstTraverser:
+        model_info: List[NtbModelInfo]
+
+        def __init__(self):
+            self.model_info = []
+
+        @staticmethod
+        def continue_traverse(traverse, node, cell_no):
+            for field_name in node._fields:
+                field = getattr(node, field_name)
+                if isinstance(field, list):
+                    for elem in field:
+                        traverse(elem, cell_no)
+                traverse(field, cell_no)
+
+        def traverse_ast_node(self, node: ast.AST, cell_no: int):
+            if not isinstance(node, ast.AST):
+                return
+
+            candidate_node_predicate = isinstance(node, ast.Assign) and \
+                                       isinstance(node.value, ast.Call) and \
+                                       get_func_name(node.value) in ML_MODELS_LIST + ['fit']
+
+            if candidate_node_predicate:
+
+                call_node = node.value
+                func_name = get_func_name(call_node)
+
+                if func_name in ML_MODELS_LIST:
+                    ntb_model_info = NtbModelInfo()
+                    ntb_model_info.constructor_location = NtbTokenLocationInfo(cell_no, node.lineno)
+                    ntb_model_info.variable_name = node.targets[0].id
+                    ntb_model_info.model_name = func_name
+                    self.model_info.append(ntb_model_info)
+                else:  # func_name == 'fit'
+                    try:
+                        func_name_2 = get_func_name(call_node.func.value)
+                        if func_name_2 in ML_MODELS_LIST:
+                            ntb_model_info = NtbModelInfo()
+                            ntb_model_info.constructor_location = NtbTokenLocationInfo(cell_no, node.lineno)
+                            ntb_model_info.variable_name = node.targets[0].id
+                            ntb_model_info.model_name = func_name_2
+                            ntb_model_info.fit_location = NtbTokenLocationInfo(cell_no, node.lineno)
+                            self.model_info.append(ntb_model_info)
+                    except AttributeError:  # Everything ok, just wrong node
+                        pass
+            else:
+                self.continue_traverse(self.traverse_ast_node, node, cell_no)
+
+    def get_model_info(self):
+        return self.model_info
+
+    def get_preprocessing_code(self) -> str:
+        """
+        By default returns code above constructor of first counter model
+        """
+        first_model = self.model_info[0]
+        first_model_cell_no, first_model_line_no = first_model.constructor_location.cell_no, \
+                                                   first_model.constructor_location.line_no - 1
+
+        return NtbCodeExtractorHelper.generate_code_up_to(first_model_cell_no,
+                                                          first_model_line_no,
+                                                          path_to_ntb_file=self.path_to_ntb_file,
+                                                          including_last_line=False)
+
+    def generate_training_code(self, model_name=None, how_to_pickle='pickle') -> str:
+        if model_name is not None:
+            encountered_model_names = [mi.model_name for mi in self.model_info]
+            if model_name not in encountered_model_names:
+                raise RuntimeError(f'Model {model_name} was not found in {self.path_to_ntb_file} notebook.')
+            if model_name != encountered_model_names[0]:
+                raise RuntimeError(f'Not Implemented. Required model {model_name} is not the first to occur'
+                                   f'in {self.path_to_ntb_file} notebook.')
+
+        if how_to_pickle not in ['pickle', 'joblib']:
+            raise RuntimeError(f'Invalid argument for pickling strategy: {how_to_pickle}')
+
+        first_model = self.model_info[0]
+        if first_model.fit_location is None:
+            raise RuntimeError(f'Fit location is missing for model {model_name}'
+                               f' in {self.path_to_ntb_file} notebook')
+        first_model_fit_cell_no, first_model_fit_line_no = first_model.fit_location.cell_no, \
+                                                           first_model.fit_location.line_no - 1
+        res = ''
+        res += NtbCodeExtractorHelper.generate_code_up_to(first_model_fit_cell_no,
+                                                          first_model_fit_line_no,
+                                                          path_to_ntb_file=self.path_to_ntb_file,
+                                                          including_last_line=True) + '\n'
+        if how_to_pickle == 'pickle':
+            res += f'import pickle\n' \
+                   f'return pickle.dumps({first_model.variable_name})\n'
+        elif how_to_pickle == 'joblib':
+            raise RuntimeError(f'Joblib pickling is not implemented')
+
+        return res
+
+    def __collect_model_info(self) -> None:
+        ast_traverser = self.AstTraverser()
+        for cell_no, cell in enumerate(NtbCodeExtractorHelper.generate_code_cells_from_ipynb(self.path_to_ntb_file)):
+            tree = ast.parse(NtbCodeExtractorHelper.all_cell_source(cell))
+            ast_traverser.traverse_ast_node(tree, cell_no)
+        self.model_info = ast_traverser.model_info
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
