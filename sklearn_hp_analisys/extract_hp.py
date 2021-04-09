@@ -12,6 +12,10 @@ logging.basicConfig(filename=os.path.join(LOG_DIR, LOG_FILE_NAME), level=logging
 
 
 class HyperparamsLocation:
+    """
+    Helper class to handle location of
+    hyperparameters example in a github dataset
+    """
     def __init__(self, df_record):
         self.repo_id = df_record.loc['repository_id']
         self.notebook_id = df_record.loc['notebook_id']
