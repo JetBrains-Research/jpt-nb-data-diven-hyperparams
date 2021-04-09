@@ -96,6 +96,7 @@ class NtbModelInfo:
     variable_name: str = None
     constructor_location: NtbTokenLocationInfo = None
     fit_location: NtbTokenLocationInfo = None
+    training_sample_var_name: str = None
 
 
 class NtbCodeExtractor:
@@ -121,7 +122,7 @@ class NtbCodeExtractor:
                         traverse(elem, cell_no)
                 traverse(field, cell_no)
 
-        def traverse_ast_node(self, node: ast.AST, cell_no: int):
+        def traverse_collect_model_info(self, node: ast.AST, cell_no: int):
             if not isinstance(node, ast.AST):
                 return
 
@@ -149,18 +150,42 @@ class NtbCodeExtractor:
                             ntb_model_info.variable_name = node.targets[0].id
                             ntb_model_info.model_name = func_name_2
                             ntb_model_info.fit_location = NtbTokenLocationInfo(cell_no, node.lineno)
+                            ntb_model_info.training_sample_var_name = call_node.args[0].id
                             self.model_info.append(ntb_model_info)
                     except AttributeError:  # Everything ok, just wrong node
                         pass
             else:
-                self.continue_traverse(self.traverse_ast_node, node, cell_no)
+                self.continue_traverse(self.traverse_collect_model_info, node, cell_no)
+
+        def traverse_fill_missing_fit_loc(self, node: ast.AST, cell_no: int):
+            if not isinstance(node, ast.AST):
+                return
+
+            missing_fit_loc_models = [mi for mi in self.model_info if mi.fit_location is None]
+
+            if len(missing_fit_loc_models) == 0:
+                return
+
+            if isinstance(node, ast.Call) and get_func_name(node) == 'fit':
+                try:
+                    mi = next((mi for mi in missing_fit_loc_models if mi.variable_name == node.func.value.id), None)
+                    if mi is not None:
+                        mi.fit_location = NtbTokenLocationInfo(cell_no, node.lineno)
+                        mi.training_sample_var_name = node.args[0].id
+                except AttributeError:
+                    pass
+            else:
+                self.continue_traverse(self.traverse_fill_missing_fit_loc, node, cell_no)
 
     def get_model_info(self):
         return self.model_info
 
+    def get_model_names(self):
+        return [mi.model_name for mi in self.model_info]
+
     def get_preprocessing_code(self) -> str:
         """
-        By default returns code above constructor of first counter model
+        By default returns code above constructor of first encountered model
         """
         first_model = self.model_info[0]
         first_model_cell_no, first_model_line_no = first_model.constructor_location.cell_no, \
@@ -173,7 +198,7 @@ class NtbCodeExtractor:
 
     def generate_training_code(self, model_name=None, how_to_pickle='pickle') -> str:
         if model_name is not None:
-            encountered_model_names = [mi.model_name for mi in self.model_info]
+            encountered_model_names = self.get_model_names()
             if model_name not in encountered_model_names:
                 raise RuntimeError(f'Model {model_name} was not found in {self.path_to_ntb_file} notebook.')
             if model_name != encountered_model_names[0]:
@@ -194,19 +219,50 @@ class NtbCodeExtractor:
                                                           first_model_fit_line_no,
                                                           path_to_ntb_file=self.path_to_ntb_file,
                                                           including_last_line=True) + '\n'
-        if how_to_pickle == 'pickle':
-            res += f'import pickle\n' \
-                   f'return pickle.dumps({first_model.variable_name})\n'
-        elif how_to_pickle == 'joblib':
-            raise RuntimeError(f'Joblib pickling is not implemented')
+        # if how_to_pickle == 'pickle':
+        #     res += f'import pickle\n' \
+        #            f'return pickle.dumps({first_model.variable_name})\n'
+        # elif how_to_pickle == 'joblib':
+        #     raise RuntimeError(f'Joblib pickling is not implemented')
+        model_meta_inf_str = f'{{"training_sample_size": len({first_model.training_sample_var_name})}}'
+        res += self.__generate_training_return_stmt(first_model.variable_name,
+                                                    how_to_pickle,
+                                                    meta_inf_as_str=model_meta_inf_str)
 
         return res
+
+    @staticmethod
+    def __generate_training_return_stmt(model_var_name, how_to_pickle, meta_inf_as_str):
+        stmt = ''
+        if how_to_pickle == 'pickle':
+            stmt += f'import pickle\n' \
+                    f'return {{"pickled_model_obj": pickle.dumps({model_var_name}),' \
+                    f'"training_meta_inf": {meta_inf_as_str}}}\n'
+        elif how_to_pickle == 'joblib':
+            raise RuntimeError(f'Joblib pickling is not supported')
+
+        return stmt
+
+    def __get_training_sample_size(self, model_name, model_var_name):
+        mi = next((mi for mi in self.model_info if mi.variable_name == model_var_name and
+                                                   mi.model_name == model_name), None)
+        fit_loc = mi.fit_location
+        fit_cell = list(NtbCodeExtractorHelper.
+                            generate_code_cells_from_ipynb(self.path_to_ntb_file))[fit_loc.cell_no]
+        fit_line_src = (NtbCodeExtractorHelper.all_cell_source(fit_cell)).split('\n')[fit_loc.line_no]
+        tree = ast.parse(fit_line_src)
 
     def __collect_model_info(self) -> None:
         ast_traverser = self.AstTraverser()
         for cell_no, cell in enumerate(NtbCodeExtractorHelper.generate_code_cells_from_ipynb(self.path_to_ntb_file)):
             tree = ast.parse(NtbCodeExtractorHelper.all_cell_source(cell))
-            ast_traverser.traverse_ast_node(tree, cell_no)
+            ast_traverser.traverse_collect_model_info(tree, cell_no)
+
+        # filling missing fit() locations
+        for cell_no, cell in enumerate(NtbCodeExtractorHelper.generate_code_cells_from_ipynb(self.path_to_ntb_file)):
+            tree = ast.parse(NtbCodeExtractorHelper.all_cell_source(cell))
+            ast_traverser.traverse_fill_missing_fit_loc(tree, cell_no)
+
         self.model_info = ast_traverser.model_info
 
 
