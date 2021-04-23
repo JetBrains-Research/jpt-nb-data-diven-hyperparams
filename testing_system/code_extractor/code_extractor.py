@@ -4,8 +4,8 @@ import re
 from dataclasses import dataclass
 from typing import List
 
-from sklearn_hp_analisys.util.ast_util import get_func_name
-from sklearn_hp_analisys.util.const import ML_MODELS_LIST
+from common_util.ast_util import get_func_name
+from common_util.const import ML_MODELS_LIST
 
 
 class IPYNB_GRAMMAR:

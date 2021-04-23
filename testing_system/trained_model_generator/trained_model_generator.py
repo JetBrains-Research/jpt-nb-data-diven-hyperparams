@@ -7,7 +7,7 @@ from typing import Dict, Callable
 
 import astor
 
-from sklearn_hp_analisys.util.ast_util import get_func_name
+from common_util.ast_util import get_func_name
 from testing_system.code_extractor.code_extractor import NtbCodeExtractor
 from testing_system.code_transformers.io_unifier import replace_abs_path_with_relative_path
 from testing_system.code_wrapper.code_wrapper import CodeWrapper
