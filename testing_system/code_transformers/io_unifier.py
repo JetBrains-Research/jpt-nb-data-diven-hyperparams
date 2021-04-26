@@ -1,9 +1,4 @@
-import ast
-import os
-from typing import Optional, List
 import re
-
-import astor
 
 
 def replace_abs_path_with_relative_path(src: str) -> str:
