@@ -10,6 +10,7 @@ from testing_system.util.file_util import create_py_file
 
 from testing_system.util.file_util import cwd
 
+
 class PreprocessedDataGenerator:
     def __init__(self,
                  path_to_ntb: str,

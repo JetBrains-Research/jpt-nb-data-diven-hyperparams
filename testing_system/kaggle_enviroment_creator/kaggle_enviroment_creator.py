@@ -1,7 +1,7 @@
-import os
 from shutil import copyfile
-from testing_system.util.file_util import *
 from shutil import copytree as copytree_to_new_dir
+
+from testing_system.util.file_util import *
 
 
 class KaggleEnvCreator:
