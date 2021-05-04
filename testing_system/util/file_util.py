@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from contextlib import contextmanager
 
@@ -56,3 +57,7 @@ def cwd(path):
         yield
     finally:
         os.chdir(old_pwd)
+
+
+def replace_abs_path_with_relative_path(src: str) -> str:
+    return re.sub(r'/kaggle', '..', src)

@@ -4,9 +4,8 @@ import zlib
 from typing import Callable
 
 from testing_system.code_extractor.code_extractor import NtbCodeExtractor
-from testing_system.code_transformers.io_unifier import replace_abs_path_with_relative_path
 from testing_system.code_wrapper.code_wrapper import CodeWrapper
-from testing_system.util.file_util import create_py_file
+from testing_system.util.file_util import create_py_file, replace_abs_path_with_relative_path
 
 from testing_system.util.file_util import cwd
 

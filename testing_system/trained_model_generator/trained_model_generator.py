@@ -9,9 +9,8 @@ import astor
 
 from common_util.ast_util import get_func_name
 from testing_system.code_extractor.code_extractor import NtbCodeExtractor
-from testing_system.code_transformers.io_unifier import replace_abs_path_with_relative_path
 from testing_system.code_wrapper.code_wrapper import CodeWrapper
-from testing_system.util.file_util import create_py_file, cwd
+from testing_system.util.file_util import create_py_file, cwd, replace_abs_path_with_relative_path
 
 
 class TrainedModelWrapper:
@@ -24,17 +23,16 @@ class TrainedModelWrapper:
 
 
 class HyperparamsChanger:
-    def __init__(self, src, model_name, new_hyperparams):
+    def __init__(self, src, model_name):
         self.src = src
         self.model_name = model_name
-        self.new_hyperparams = new_hyperparams
 
-    def get_source(self) -> str:
+    def get_source(self, new_hyperparams) -> str:
         tree = ast.parse(self.src)
-        self.__traverse(tree)
+        self.__traverse(tree, new_hyperparams)
         return astor.to_source(tree)
 
-    def __traverse(self, node):
+    def __traverse(self, node, new_hyperparams):
         if not isinstance(node, ast.AST):
             return
 
@@ -43,12 +41,12 @@ class HyperparamsChanger:
                 field = getattr(node, field_name)
                 if isinstance(field, list):
                     for elem in field:
-                        self.__traverse(elem)
-                self.__traverse(field)
+                        self.__traverse(elem, new_hyperparams)
+                self.__traverse(field, new_hyperparams)
 
         else:
             new_keywords = []
-            for hp_name, hp_value in self.new_hyperparams.items():
+            for hp_name, hp_value in new_hyperparams.items():
                 kwd = ast.keyword()
                 kwd.arg = hp_name
                 if sys.version_info.minor < 8:  # before Python 3.8:
@@ -86,8 +84,8 @@ class TrainedModelGenerator:
         training_script_src = replace_abs_path_with_relative_path(training_script_src)
 
         if hyperparams != 'original':
-            training_script_src = HyperparamsChanger(training_script_src, model_name, new_hyperparams=hyperparams)\
-                .get_source()
+            training_script_src = HyperparamsChanger(training_script_src, model_name)\
+                .get_source(new_hyperparams=hyperparams)
 
         training_func_name = self.__generate_wrapper_function_name(model_name, hyperparams)
         training_func_code = CodeWrapper.wrap_with_function(training_script_src,
@@ -128,6 +126,3 @@ class TrainedModelGenerator:
     def __run_training_f(self, training_f):
         with cwd(self.kaggle_solution_dir):
             return training_f()
-
-
-

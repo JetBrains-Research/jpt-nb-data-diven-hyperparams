@@ -1,6 +1,6 @@
 from testing_system.dateset_splitter.dataset_splitter import KaggleEnvTabularDatasetSplitter
 from testing_system.kaggle_enviroment_creator.kaggle_enviroment_creator import KaggleEnvCreator, \
-    get_ntb_path_from_env, get_kaggle_dir_path_from_env
+    get_path_from_env
 from testing_system.trained_model_evaluater.trained_model_evaluater import TrainedModelEvaluater
 from testing_system.trained_model_generator.trained_model_generator import TrainedModelGenerator
 
@@ -26,15 +26,15 @@ def run_pipeline(path_to_ntb, path_to_data_dir):
     kgl_env_dataset_splitter.split_data()
 
     # 3) Training model on "train" data part
-    path_to_ntb_train = get_ntb_path_from_env(env_dir_path, train_or_val='train')
-    kaggle_dir_train = get_kaggle_dir_path_from_env(env_dir_path, train_or_val='train')
+    path_to_ntb_train = get_path_from_env(env_dir_path, train_or_val='train', which_path='ntb')
+    kaggle_dir_train = get_path_from_env(env_dir_path, train_or_val='train', which_path='kaggle_dir')
 
     tmg = TrainedModelGenerator(path_to_ntb_train, kaggle_dir_train)
     model = tmg.get_trained_model('RandomForestClassifier', hyperparams='original')
 
     # 4) Evaluating model on "val" data part
-    path_to_ntb_val = get_ntb_path_from_env(env_dir_path, train_or_val='val')
-    kaggle_dir_val = get_kaggle_dir_path_from_env(env_dir_path, train_or_val='val')
+    path_to_ntb_val = get_path_from_env(env_dir_path, train_or_val='val', which_path='ntb')
+    kaggle_dir_val = get_path_from_env(env_dir_path, train_or_val='val', which_path='kaggle_dir')
     evaluater = TrainedModelEvaluater(kaggle_dir_val, path_to_ntb_val)
     score = evaluater.evaluate_trained_model(model)
 
